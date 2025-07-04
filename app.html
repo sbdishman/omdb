@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OSM Query Interface</title>
+  <style>
+    body {
+      padding-left: 40px;
+      font-family: sans-serif;
+    }
+    #queries {
+      margin-top: 20px;
+    }
+    .query {
+      margin-bottom: 12px;
+    }
+    #results {
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Query the Open Map Database</h2>
+  <label for="state">Select a State:</label>
+  <select id="state">
+    <option value="" disabled selected>Select a state</option>
+  </select>
+
+  <div id="queries"></div>
+
+  <button onclick="addQuery()">Add Another Query</button>
+  <button onclick="submitQuery()">Go</button>
+
+  <div id="results">
+    <h3>Generated Query</h3>
+    <pre id="generatedQuery"></pre>
+    <h3>Results</h3>
+    <ul id="resultList"></ul>
+  </div>
+
+  <script>
+    const stateList = [
+      "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
+      "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
+      "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
+      "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico",
+      "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
+      "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
+      "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"
+    ];
+
+    const amenitySelectHtml = `<select name="amenity[]">
+      <option value="fast_food">fast_food</option>
+      <option value="restaurant">restaurant</option>
+      <option value="cafe">cafe</option>
+      <option value="bank">bank</option>
+      <option value="school">school</option>
+      <option value="hospital">hospital</option>
+      <option value="police">police</option>
+      <option value="fire_station">fire_station</option>
+      <option value="parking">parking</option>
+      <option value="fuel">fuel</option>
+      <option value="post_office">post_office</option>
+      <option value="library">library</option>
+      <option value="pharmacy">pharmacy</option>
+      <option value="bar">bar</option>
+      <option value="pub">pub</option>
+      <option value="toilets">toilets</option>
+      <option value="place_of_worship">place_of_worship</option>
+    </select>`;
+
+    function populateStates() {
+      const select = document.getElementById('state');
+      stateList.forEach(state => {
+        const option = document.createElement('option');
+        option.value = state;
+        option.textContent = state;
+        select.appendChild(option);
+      });
+    }
+
+    function addQuery() {
+      const container = document.getElementById('queries');
+      const div = document.createElement('div');
+      div.classList.add('query');
+      div.innerHTML = '<input name="name[]" placeholder="Node/Way Name"> ' +
+                      amenitySelectHtml +
+                      ' <input name="distance[]" placeholder="Distance (optional)"> ' +
+                      '<button type="button" onclick="this.parentElement.remove()">Remove</button>';
+      container.appendChild(div);
+      div.querySelector('input[name="name[]"]').focus();
+    }
+
+    async function submitQuery() {
+      const resultList = document.getElementById('resultList');
+      resultList.innerHTML = '';
+
+      const state = document.getElementById('state').value;
+      const queryDivs = document.querySelectorAll('.query');
+      const names = [];
+      const amenities = [];
+      const distances = [];
+
+      queryDivs.forEach(div => {
+        names.push(div.querySelector('input[name="name[]"]').value);
+        amenities.push(div.querySelector('select[name="amenity[]"]').value);
+        distances.push(div.querySelector('input[name="distance[]"]').value);
+      });
+
+      let query = '[out:json][timeout:60];\n';
+      query += `area["name"="${state}"]["admin_level"="4"]->.searchArea;\n`;
+
+      const refs = [];
+      for (let i = 0; i < names.length; i++) {
+        const name = names[i];
+        const amenity = amenities[i];
+        const distance = distances[i];
+        const ref = `.step${i}`;
+        const nameFilter = name.trim() ? `["name"="${name.trim()}"]` : '';
+        if (i === 0) {
+          query += `nw["amenity"="${amenity}"]${nameFilter}(area.searchArea)->${ref};\n`;
+        } else {
+          const parent = refs[i - 1];
+          query += `nw(around${parent}:${distance})["amenity"="${amenity}"]${nameFilter}->${ref};\n`;
+        }
+        refs.push(ref);
+      }
+
+      query += `(${refs[refs.length - 1]};);\nout center;`;
+
+      document.getElementById('generatedQuery').textContent = query;
+
+      const response = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: query
+      });
+
+      try {
+        const data = await response.json();
+        if (data.elements.length === 0) {
+          resultList.innerHTML = '<li>No results found.</li>';
+        } else {
+          data.elements.forEach(el => {
+            const lat = el.lat || el.center?.lat;
+            const lon = el.lon || el.center?.lon;
+            const name = el.tags?.name || 'Unknown';
+            if (lat && lon) {
+              const li = document.createElement('li');
+              li.innerHTML = `${name}: <a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">Map Link</a>`;
+              resultList.appendChild(li);
+            }
+          });
+        }
+      } catch {
+        resultList.innerHTML = '<li>Error parsing response.</li>';
+      }
+    }
+
+    populateStates();
+    addQuery();
+  </script>
+</body>
+</html>
