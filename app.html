@@ -92,10 +92,35 @@
     }
 
     async function submitQuery() {
+      const stateSelect = document.getElementById('state');
+      if (!stateSelect.value) {
+        stateSelect.style.border = '2px solid red';
+        stateSelect.focus();
+        return;
+      } else {
+        stateSelect.style.border = '';
+      }
+
       const resultList = document.getElementById('resultList');
       resultList.innerHTML = '';
 
-      const state = document.getElementById('state').value;
+      const countdownLi = document.createElement('li');
+      countdownLi.id = 'countdown';
+      let timeLeft = 60;
+      countdownLi.textContent = `Waiting for response... ${timeLeft}s`;
+      resultList.appendChild(countdownLi);
+
+      const intervalId = setInterval(() => {
+        timeLeft--;
+        if (timeLeft >= 0) {
+          countdownLi.textContent = `Waiting for response... ${timeLeft}s`;
+        } else {
+          countdownLi.textContent = 'Query timed out.';
+          clearInterval(intervalId);
+        }
+      }, 1000);
+
+      const state = stateSelect.value;
       const queryDivs = document.querySelectorAll('.query');
       const names = [];
       const amenities = [];
@@ -130,13 +155,15 @@
 
       document.getElementById('generatedQuery').textContent = query;
 
-      const response = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: query
-      });
-
+      let response;
       try {
+        response = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: query
+        });
         const data = await response.json();
+        clearInterval(intervalId);
+        countdownLi.remove();
         if (data.elements.length === 0) {
           resultList.innerHTML = '<li>No results found.</li>';
         } else {
@@ -152,12 +179,23 @@
           });
         }
       } catch {
+        clearInterval(intervalId);
+        countdownLi.textContent = 'Query timed out.';
         resultList.innerHTML = '<li>Error parsing response.</li>';
       }
     }
 
-    populateStates();
-    addQuery();
+    window.onload = function () {
+      populateStates();
+      addQuery();
+      document.getElementById('state').focus();
+    };
+
+    document.getElementById('state').addEventListener('change', function () {
+      if (this.value) {
+        this.style.border = '';
+      }
+    });
   </script>
 </body>
 </html>
