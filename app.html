@@ -17,18 +17,68 @@
     #results {
       margin-top: 24px;
     }
+    .areaGroup {
+      margin-bottom: 12px;
+    }
   </style>
 </head>
 <body>
   <h2>Query the Open Map Database</h2>
-  <label for="state">Select a State:</label>
-  <select id="state">
-    <option value="" disabled selected>Select a state</option>
-  </select>
+  <hr>
+  <p>
+    This section has the capability to create a union of areas but seems to work like an 'OR' operation.<br>
+    There must be at least one AREA defined.
+  </p>
+  <table id="areaTable" style="border-collapse: collapse; margin-bottom: 16px;">
+    <thead>
+      <tr>
+        <th style="padding-right: 10px; text-align: left;">Area Name</th>
+        <th style="padding-right: 10px; text-align: left;">Admin Level</th>
+        <th style="padding-right: 10px; text-align: left;">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="areaGroups">
+      <tr class="areaGroup">
+        <td>
+          <input name="areaName[]">
+        </td>
+        <td>
+          <select name="adminLevel[]">
+            <option value="2">Country (2)</option>
+            <option value="4" selected>State (4)</option>
+            <option value="6">County (6)</option>
+            <option value="8">City (8)</option>
+          </select>
+        </td>
+        <td>
+          <button type="button" onclick="addAreaGroup()">OR</button>
+          <button type="button" onclick="removeAreaGroup(this)">Remove</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <hr>
+  <p>
+    Inside the area, the node or way entries are queried in sequence with subsequent query<br>
+    entries noted as some distance from the first. Therefore the distance on the first record<br>
+    is an invalid data point and not allowed.
+  </p>
+  <table id="queryTable" style="border-collapse: collapse; margin-bottom: 16px;">
+    <thead>
+      <tr>
+        <th style="padding-right: 10px; text-align: left;">Node/Way Name</th>
+        <th style="padding-right: 10px; text-align: left;">Amenity</th>
+        <th style="padding-right: 10px; text-align: left;">Drive-Through</th>
+        <th style="padding-right: 10px; text-align: left;">Brand</th>
+        <th style="padding-right: 10px; text-align: left;">Distance (meters)</th>
+        <th style="padding-right: 10px; text-align: left;">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="queries">
+    </tbody>
+  </table>
 
-  <div id="queries"></div>
-
-  <button onclick="addQuery()">Add Another Query</button>
+  
   <button onclick="submitQuery()">Go</button>
 
   <div id="results">
@@ -39,17 +89,9 @@
   </div>
 
   <script>
-    const stateList = [
-      "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
-      "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
-      "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
-      "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico",
-      "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
-      "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
-      "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"
-    ];
 
     const amenitySelectHtml = `<select name="amenity[]">
+      <option value="" selected></option>
       <option value="fast_food">fast_food</option>
       <option value="restaurant">restaurant</option>
       <option value="cafe">cafe</option>
@@ -69,36 +111,82 @@
       <option value="place_of_worship">place_of_worship</option>
     </select>`;
 
-    function populateStates() {
-      const select = document.getElementById('state');
-      stateList.forEach(state => {
-        const option = document.createElement('option');
-        option.value = state;
-        option.textContent = state;
-        select.appendChild(option);
-      });
+    function removeAreaGroup(button) {
+      const container = document.getElementById('areaGroups');
+      if (container.children.length > 1) {
+        // Remove row (tr)
+        button.closest('tr').remove();
+      }
+    }
+
+    function addAreaGroup() {
+      const container = document.getElementById('areaGroups');
+      const tr = document.createElement('tr');
+      tr.classList.add('areaGroup');
+      tr.innerHTML = `
+        <td><input name="areaName[]"></td>
+        <td>
+          <select name="adminLevel[]">
+            <option value="2">Country (2)</option>
+            <option value="4" selected>State (4)</option>
+            <option value="6">County (6)</option>
+            <option value="8">City (8)</option>
+          </select>
+        </td>
+        <td>
+          <button type="button" onclick="addAreaGroup()">OR</button>
+          <button type="button" onclick="removeAreaGroup(this)">Remove</button>
+        </td>
+      `;
+      container.appendChild(tr);
+      tr.querySelector('input[name="areaName[]"]').focus();
     }
 
     function addQuery() {
       const container = document.getElementById('queries');
-      const div = document.createElement('div');
-      div.classList.add('query');
-      div.innerHTML = '<input name="name[]" placeholder="Node/Way Name"> ' +
-                      amenitySelectHtml +
-                      ' <input name="distance[]" placeholder="Distance (optional)"> ' +
-                      '<button type="button" onclick="this.parentElement.remove()">Remove</button>';
-      container.appendChild(div);
-      div.querySelector('input[name="name[]"]').focus();
+      const tr = document.createElement('tr');
+      tr.classList.add('query');
+      tr.innerHTML = '<td><input name="name[]" style="width: 220px;"></td>' +
+                     '<td>' + amenitySelectHtml + '</td>' +
+                     '<td><select name="driveThrough[]" style="width: 90px;">' +
+                     '<option value="" selected></option>' +
+                     '<option value="yes">yes</option>' +
+                     '<option value="no">no</option>' +
+                     '</select></td>' +
+                     '<td><input name="brand[]" style="width: 150px;"></td>' +
+                     '<td><input name="distance[]"></td>' +
+                     '<td><button type="button" onclick="addQuery()">Union</button> ' +
+                     '<button type="button" onclick="removeQuery(this)">Remove</button></td>';
+      container.appendChild(tr);
+      tr.querySelector('input[name="name[]"]').focus();
+    }
+
+    function removeQuery(button) {
+      const container = document.getElementById('queries');
+      if (container.children.length > 1) {
+        button.closest('tr').remove();
+      }
     }
 
     async function submitQuery() {
-      const stateSelect = document.getElementById('state');
-      if (!stateSelect.value) {
-        stateSelect.style.border = '2px solid red';
-        stateSelect.focus();
+      const areaGroups = document.querySelectorAll('.areaGroup');
+      let areaBlock = '(\n';
+      let validAreaCount = 0;
+      areaGroups.forEach(group => {
+        const areaName = group.querySelector('input[name="areaName[]"]').value.trim();
+        const adminLevel = group.querySelector('select[name="adminLevel[]"]').value;
+        if (areaName) {
+          areaBlock += `  rel["name"="${areaName}"]["admin_level"="${adminLevel}"];\n`;
+          validAreaCount++;
+        }
+      });
+      areaBlock += ') -> .r;\n.r map_to_area -> .searchArea;\n';
+
+      if (validAreaCount === 0) {
+        const firstInput = areaGroups[0].querySelector('input[name="areaName[]"]');
+        firstInput.style.border = '2px solid red';
+        firstInput.focus();
         return;
-      } else {
-        stateSelect.style.border = '';
       }
 
       const resultList = document.getElementById('resultList');
@@ -120,34 +208,47 @@
         }
       }, 1000);
 
-      const state = stateSelect.value;
       const queryDivs = document.querySelectorAll('.query');
       const names = [];
       const amenities = [];
+      const driveThroughs = [];
+      const brands = [];
       const distances = [];
 
       queryDivs.forEach(div => {
         names.push(div.querySelector('input[name="name[]"]').value);
         amenities.push(div.querySelector('select[name="amenity[]"]').value);
+        driveThroughs.push(div.querySelector('select[name="driveThrough[]"]').value);
+        brands.push(div.querySelector('input[name="brand[]"]').value);
         distances.push(div.querySelector('input[name="distance[]"]').value);
       });
 
-      let query = '[out:json][timeout:60];\n';
-      query += `area["name"="${state}"]["admin_level"="4"]->.searchArea;\n`;
+      let query = '[out:json][timeout:60];\n' + areaBlock;
 
       const refs = [];
       for (let i = 0; i < names.length; i++) {
         const name = names[i];
         const amenity = amenities[i];
+        const driveThrough = driveThroughs[i];
+        const brand = brands[i];
         const distance = distances[i];
         const ref = `.step${i}`;
-        const nameFilter = name.trim() ? `["name"="${name.trim()}"]` : '';
+
+        const filters = [];
+        if (amenity.trim()) filters.push(`["amenity"="${amenity.trim()}"]`);
+        if (name.trim()) filters.push(`["name"="${name.trim()}"]`);
+        if (driveThrough.trim()) filters.push(`["drive_through"="${driveThrough.trim()}"]`);
+        if (brand.trim()) filters.push(`["brand"="${brand.trim()}"]`);
+
+        const filterString = filters.join('');
+
         if (i === 0) {
-          query += `nw["amenity"="${amenity}"]${nameFilter}(area.searchArea)->${ref};\n`;
+          query += `nw${filterString}(area.searchArea)->${ref};\n`;
         } else {
           const parent = refs[i - 1];
-          query += `nw(around${parent}:${distance})["amenity"="${amenity}"]${nameFilter}->${ref};\n`;
+          query += `nw(around${parent}:${distance})${filterString}->${ref};\n`;
         }
+
         refs.push(ref);
       }
 
@@ -211,16 +312,10 @@
     }
 
     window.onload = function () {
-      populateStates();
       addQuery();
-      document.getElementById('state').focus();
+      document.querySelector('#queries input[name="distance[]"]').disabled = true;
+      document.querySelector('input[name="areaName[]"]').focus();
     };
-
-    document.getElementById('state').addEventListener('change', function () {
-      if (this.value) {
-        this.style.border = '';
-      }
-    });
   </script>
 </body>
 </html>
