@@ -167,13 +167,38 @@
         if (data.elements.length === 0) {
           resultList.innerHTML = '<li>No results found.</li>';
         } else {
+          data.elements.sort((a, b) => {
+            const ta = a.tags || {};
+            const tb = b.tags || {};
+
+            const pa = ta['addr:postcode'] || '';
+            const pb = tb['addr:postcode'] || '';
+
+            const sa = ta['addr:street'] || '';
+            const sb = tb['addr:street'] || '';
+
+            const ha = ta['addr:housenumber'] || '';
+            const hb = tb['addr:housenumber'] || '';
+
+            return pa.localeCompare(pb) || sa.localeCompare(sb) || ha.localeCompare(hb);
+          });
+
           data.elements.forEach(el => {
             const lat = el.lat || el.center?.lat;
             const lon = el.lon || el.center?.lon;
             const name = el.tags?.name || 'Unknown';
+            const tags = el.tags || {};
+            const parts = [
+              tags['addr:housenumber'],
+              tags['addr:street']
+            ].filter(Boolean).join(' ');
+            const city = tags['addr:city'] || '';
+            const state = tags['addr:state'] || '';
+            const postcode = tags['addr:postcode'] || '';
+            const fullAddress = [parts, city, state, postcode].filter(Boolean).join(', ');
             if (lat && lon) {
               const li = document.createElement('li');
-              li.innerHTML = `${name}: <a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">Map Link</a>`;
+              li.innerHTML = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">Map Link</a> — ${name} — ${fullAddress || 'No address available'}`;
               resultList.appendChild(li);
             }
           });
